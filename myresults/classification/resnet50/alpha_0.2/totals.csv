@@ -1,0 +1,18 @@
+Shape Category,Number Shape Decisions,Number Texture Decisions,Number Neither,Number Restricted Shape Decisions,Number Restricted Texture Decisions,Total Number Stimuli
+airplane,0,42,33,7,68,75
+bear,6,34,35,8,67,75
+bicycle,37,7,31,61,14,75
+bird,1,48,26,5,70,75
+boat,10,32,33,22,53,75
+bottle,46,20,9,52,23,75
+car,24,30,21,34,41,75
+cat,7,34,34,15,60,75
+chair,14,42,19,19,56,75
+clock,47,16,12,51,24,75
+dog,7,41,27,9,66,75
+elephant,7,38,30,7,68,75
+keyboard,13,42,20,15,60,75
+knife,4,31,40,16,59,75
+oven,5,39,31,18,57,75
+truck,24,37,14,30,45,75
+total,252,533,415,369,831,1200

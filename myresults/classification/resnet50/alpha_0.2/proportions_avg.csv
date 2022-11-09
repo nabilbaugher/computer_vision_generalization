@@ -1,0 +1,4 @@
+Model,Metric,Shape Match Closer,Texture Match Closer
+resnet50,no_neither,0.32101910828025476,0.6789808917197452
+resnet50,neither,0.21,0.44416666666666665
+resnet50,restricted,0.3075,0.6925
