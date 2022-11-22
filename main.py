@@ -1,4 +1,5 @@
 import sys
+import cv2
 import torch
 import torch.nn as nn
 from PIL import Image
@@ -63,6 +64,7 @@ def new_seed(args, stimuli_dir):
 
     :param args: command line arguments
     :param stimuli_dir: location of relevant dataset"""
+    print('stimuli_dir', stimuli_dir)
 
     if args.novel:
         num_draws = 1
@@ -613,7 +615,7 @@ def initialize_model(model_type, n=-1):
 
     # These are the ImageNet transforms; most models will use these, but a few redefine them
     transform = transforms.Compose([
-        transforms.Scale(224),
+        transforms.Resize(224),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
@@ -1080,7 +1082,7 @@ if __name__ == '__main__':
     parser.add_argument('--blur', help='Radius for Gaussian blur to be applied to background.', default=0, type=float)
     parser.add_argument('--all_models', help='Generates plots, summaries, or results for all models.', required=False,
                         action='store_true')
-    parser.add_argument('--new_seed', help='Generates a new collection of randomly selected triplets to use in the '
+    parser.add_argument('--generate_new_seed', help='Generates a new collection of randomly selected triplets to use in the '
                                            'calculation of similarity shape/texture bias proportions.', required=False,
                         action='store_true')
     parser.add_argument('--N', help='Number of random models to average results over.', required=False, default=10)
@@ -1107,7 +1109,7 @@ if __name__ == '__main__':
     alpha = args.alpha
     blur = args.blur
     all_models = args.all_models
-    new_seed = args.new_seed
+    generate_new_seed = args.generate_new_seed
     create_stimuli = args.create_stimuli
     calculate = args.calculate
     bg_match = args.bg_match
@@ -1175,9 +1177,9 @@ if __name__ == '__main__':
         else:
             stimuli_dir = '{0}geirhos-alpha{1}-size{2}-aligned'.format(bg_str, alpha, percent)
 
-    if new_seed or not os.path.exists('seed.json') or not os.path.exists('novel_seed.json'):
+    if generate_new_seed or not os.path.exists('seed.json') or not os.path.exists('novel_seed.json'):
         new_seed(args, stimuli_dir)
-
+        
     if plot:
         run_simulations(args, 'resnet50', stimuli_dir)
         make_plots(args)

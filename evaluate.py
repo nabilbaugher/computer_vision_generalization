@@ -165,7 +165,7 @@ def calculate_proportions(model_type, result_dir):
     metrics = ['no_neither', 'neither', 'restricted']
     results = pd.DataFrame(index=range(len(metrics)), columns=columns)
 
-    results.at[:, 'Model'] = model_type
+    results.loc[:, 'Model'] = model_type
     for i in range(len(metrics)):
         results.at[i, 'Metric'] = metrics[i]
     results.at[0, 'Shape Match Closer'] = shape_texture
@@ -277,7 +277,7 @@ def calculate_similarity_totals(args, model_type, stimuli_dir, n=-1, N=0):
                 if triplet in selection:
                     df2.loc[df2_idx, :] = row[:]
                     df2_idx += 1
-
+                    
             for index, row in df2.iterrows():
                 metric = row['Metric']
 
@@ -288,7 +288,7 @@ def calculate_similarity_totals(args, model_type, stimuli_dir, n=-1, N=0):
                 results_by_metric[metric][1] += texture_closer
 
                 num_rows += 1
-
+        print('num_rows: {0}'.format(num_rows))
         num_rows = num_rows // len(metrics)  # Each triplet appears len(metric) times.
         for i in range(len(metrics)):
             for j in range(2):

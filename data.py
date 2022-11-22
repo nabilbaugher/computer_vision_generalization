@@ -43,6 +43,7 @@ class SilhouetteTriplets(Dataset):
                             stimulus background. If False, the entire image is used.
         :param override: if True, will replace the stimuli that already exist.
         """
+        # print('initializing triplets')
         self.shape_classes = {}
         self.all_triplets = []
         self.triplets_by_image = {}
@@ -54,6 +55,7 @@ class SilhouetteTriplets(Dataset):
             self.alpha_str = '1'
         else:
             self.alpha_str = str(args.alpha)
+        print('alpha', self.alpha, self.alpha_str)
         self.blur = args.blur
         if self.blur == 0:
             self.blur_str = ''
@@ -140,10 +142,13 @@ class SilhouetteTriplets(Dataset):
             try:
                 # Load dictionary
                 self.shape_classes = json.load(open(shape_class_dir))
+                print('loaded shape classes')
 
             except FileNotFoundError:
                 # Create dictionary
-                for image_dir in glob.glob('stimuli/geirhos-alpha0.0-size100-aligned/*/*.png'):
+                print('generated shape classes')
+                # for image_dir in glob.glob('stimuli/geirhos-alpha0.0-size100-aligned/*/*.png'):
+                for image_dir in glob.glob('stimuli-shape/style-transfer/*/*.png'):
                     image = image_dir.split('/')
                     shape = image[2]  # Shape class of image
                     texture_spec = image[3].split('-')[1].replace('.png', '')  # Specific texture instance, eg. clock2
@@ -202,24 +207,29 @@ class SilhouetteTriplets(Dataset):
                 # Save dictionary as a JSON file
                 with open(triplet_dir, 'w') as file:
                     json.dump(self.triplets_by_image, file)
-
+            print('create_silhouette_stimuli')
             self.create_silhouette_stimuli()
+            print('create_silhouette_stimuli done')
 
     def create_silhouette_stimuli(self):
         """Create and save the silhouette stimuli if they do not already exist."""
+        print('starting create_silhouette_stimuli')
         try:
+            print('stimuli/{0}'.format(self.stimuli_dir))
             os.mkdir('stimuli/{0}'.format(self.stimuli_dir))
+            print('succeeded')
         except FileExistsError:
+            print('file exists')
             if self.override:
                 pass
             else:
                 return
-
+        print('created stimuli dir')
         if self.novel:
             mask_dir = 'stimuli/novel-masks'
         else:
-            mask_dir = 'stimuli/geirhos-masks'
-
+            mask_dir = 'stimuli-shape/filled-silhouettes'
+            
         for im_name in self.shape_classes.keys():
 
             try:
@@ -326,10 +336,10 @@ class SilhouetteTriplets(Dataset):
                 mask.putdata(new_data)
 
                 if not self.bg:
-                    texture_path = 'stimuli/geirhos-alpha0.0-size100-aligned/{0}'.format(
+                    texture_path = 'stimuli-shape/style-transfer/{0}'.format(
                         self.shape_classes[im_name]['dir'])
                 else:
-                    texture_path = 'stimuli/geirhos-alpha1-size100-aligned/{0}'.format(
+                    texture_path = 'stimuli-shape/style-transfer/{0}'.format(
                         self.shape_classes[im_name]['dir'])
                 texture = Image.open(texture_path)
 
