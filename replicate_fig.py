@@ -11,6 +11,9 @@ from plot import make_plots
 import numpy as np
 import matplotlib.pyplot as plt
 import json
+from deephys import Neuron, Layer, Model, import_torch_dataset, import_test_data
+from collections import defaultdict
+
 
 class Args():
     def __init__(self, novel, bg, alpha, blur, percent_size, unaligned, plot, get_embeddings):
@@ -40,6 +43,7 @@ def init_model(random=False):
     penult_model = nn.Sequential(*modules)
     
     return model, penult_model, transform
+
 
 def run_classification(model, penult_model, transform, result_dir, alpha):
     stimuli_dir = '../stimuli-shape/style-transfer/{}'.format(alpha)
@@ -278,9 +282,9 @@ def triplets(args, model_type, stimuli_dir, embeddings, alpha, n=-1):
 
     return results
 
-def run_triplets(model, penult_model, transform, result_dir, alpha):
+def run_triplets(model, penult_model, transform, random, alpha):
     stimuli_dir = '../stimuli-shape/style-transfer/{}'.format(alpha)
-    model_type = 'resnet50'
+    model_type = 'resnet50{}'.format('_random' if random else '')
     
     args = Args(
         novel=False,
@@ -358,9 +362,39 @@ def plot_bias_vs_alpha(classification=True):
     plt.savefig('myfigures/bias_vs_alpha_classification.png')
 
     plt.clf()
-        
+
 def run_experiments(alphas, classification=True, random=False):
     model, penult_model, transform = init_model(random)
+    # if export_to_deephys:
+    #     neuronList = []
+    #     for i in range(np.shape(all_activs)[1]):
+    #         neuronList.append(Neuron())
+
+    #         layerList = []
+    #         layerList.append(Layer(
+    #             layerID = "linear1",
+    #             neurons = neuronList
+    #         ))
+
+    #     #####
+    #     neuronList = []
+    #     for i in range(np.shape(all_outputs)[1]):
+    #         neuronList.append(Neuron())
+
+    #         layerList.append(Layer(
+    #             layerID = "classification",
+    #             neurons = neuronList
+    #         ))
+    #     #####
+
+    #     model = Model(
+    #         name = "colored_MNIST",
+    #         suffix = None,
+    #         layers = layerList
+    #     )
+
+    #     model.save()
+        
     if classification:
         for alpha in alphas:
             print('random: {0}, alpha: {1}'.format(random, alpha))
@@ -368,12 +402,170 @@ def run_experiments(alphas, classification=True, random=False):
             run_classification(model, penult_model, transform, result_dir, alpha)
     else:
         for alpha in alphas:
-            print('alpha: {0}'.format(alpha))
+            print('random: {0}, alpha: {1}'.format(random, alpha))
             result_dir = 'myresults/triplets/resnet50{0}/alpha_{1}'.format('_random' if random else '', alpha)
-            run_triplets(model, penult_model, transform, result_dir, alpha)
+            run_triplets(model, penult_model, transform, random, alpha)
     print('all done!')
 
+# get test data for deephys
+def get_test_data(testloader):
+    print('getting test data')
+    all_images = []
+    all_cats = []
+    resize = transforms.Resize((32,32)) #default size is 32 for deephys
+    
+    with torch.no_grad():
+        for batch in testloader:
+            im, name = batch
+            
+            #Resize data for deephys
+            resized_im = resize(im)
+            all_images.append(resized_im)
+            all_cats.append(name)
+    
+    return all_images, all_cats
+
+# get activations and outputs for deephys
+def get_activations_and_outputs(model, penult_model, dataloader):
+    print('getting activations and outputs')
+    # Define a dictionary to store the activations and outputs
+    activation = {}
+
+    # Define a function to create a hook that stores the output of a given layer
+    def get_activation(name):
+        def hook(model, input, output):
+            activation[name] = output.detach()
+        return hook
+
+    # Register hooks on the penultimate layer and the final layer
+    penult_model.register_forward_hook(get_activation('penult'))
+    model.register_forward_hook(get_activation('output'))
+    
+    # Initialize lists to store the activations and outputs
+    all_activs = []
+    all_outputs = []
+
+    # Pass images through the model one at a time
+    with torch.no_grad():
+        for batch in dataloader:
+            im, name = batch
+
+            # Pass the image through the penultimate layer
+            penult_output = penult_model(im)
+
+            # Pass the output of the penultimate layer through the final layer
+            model_output = model(im)
+
+            # Store the activations and outputs in the activation dictionary
+            activation['penult'] = penult_output.detach()
+            activation['output'] = model_output.detach()
+
+            # Append the activations and outputs to the lists
+            all_activs.append(activation['penult'])
+            all_outputs.append(activation['output'])
+
+    # Concatenate the activations and outputs into single tensors
+    all_activs = torch.cat(all_activs)
+    all_outputs = torch.cat(all_outputs)
+
+    return all_activs, all_outputs
+
+
+def export_to_deephys(alphas, random=False):
+    model, penult_model, transform = init_model(random)
+    
+    for alpha in alphas:
+        stimuli_dir = '../stimuli-shape/style-transfer/{}'.format(alpha)
+                
+        args = Args(
+            novel=False,
+            bg=False,
+            alpha=alpha,
+            blur=0.0,
+            percent_size='100',
+            unaligned=False,
+            plot='alpha',
+            get_embeddings=False,
+        )
+        
+        dataset = SilhouetteTriplets(args, stimuli_dir, transform)
+        dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
+        
+        # Get test data
+        all_images, all_cats = get_test_data(dataloader)
+        
+        # if activations and outputs already exist, load them
+        if os.path.exists('myresults/deephys/resnet50{0}/alpha_{1}_activations.pt'.format('_random' if random else '', alpha)):
+            all_activs = torch.load('myresults/deephys/resnet50{0}/alpha_{1}_activations.pt'.format('_random' if random else '', alpha))
+            all_outputs = torch.load('myresults/deephys/resnet50{0}/alpha_{1}_outputs.pt'.format('_random' if random else '', alpha))
+        else:
+            # Get the activations and outputs
+            all_activs, all_outputs = get_activations_and_outputs(model, penult_model, dataloader)
+            
+            # save activations and outputs
+            torch.save(all_activs, 'myresults/deephys/resnet50{0}/alpha_{1}_activations.pt'.format('_random' if random else '', alpha))
+            torch.save(all_outputs, 'myresults/deephys/resnet50{0}/alpha_{1}_outputs.pt'.format('_random' if random else '', alpha))
+        
+        #@title Save the model file
+        neuronList = []
+        for i in range(np.shape(all_activs)[1]):
+            neuronList.append(Neuron())
+            
+        layerList = []
+        layerList.append(Layer(
+            layerID = "linear1",
+            neurons = neuronList
+        ))
+
+        #####
+        neuronList = []
+        for i in range(np.shape(all_outputs)[1]):
+            neuronList.append(Neuron())
+        print('neuron list length', len(neuronList))
+
+
+        layerList.append(Layer(
+            layerID = "classification",
+            neurons = neuronList
+        ))
+        #####
+
+        model = Model(
+            name = "resnet50{0}_alpha_{1}".format('_random' if random else '', alpha),
+            suffix = None,
+            layers = layerList
+        )
+
+        model.save()
+
+        mean=torch.tensor([0.485, 0.456, 0.406])
+        std=torch.tensor([0.229, 0.224, 0.225])
+        print(set(all_cats))
+        
+        shape_categories = sorted(['knife', 'keyboard', 'elephant', 'bicycle', 'airplane',
+                                   'clock', 'oven', 'chair', 'bear', 'boat', 'cat',
+                                   'bottle', 'truck', 'car', 'bird', 'dog'])
+        all_cats_dummy = [0 for i in range(len(all_cats))]
+        print(all_images[0][0][0][0][0])
+        transformed_images = [torch.permute(torch.squeeze(image),[1,2,0])*std + mean for image in all_images]
+        print(type(transformed_images[0][0][0][0]))
+        test = import_test_data(
+            "StylizedImagenet",
+            shape_categories,
+            [all_activs, all_outputs],
+            model,
+            transformed_images,
+            all_cats_dummy,
+        )
+        test.suffix = None
+        test.save()
+        
+        
+    
 # run_experiments([0.0, 0.2, 0.4, 0.6, 0.8, 1.0], classification=True, random=False)
 # run_experiments([0.0, 0.2, 0.4, 0.6, 0.8, 1.0], classification=True, random=True)
-run_experiments([0.0, 0.2, 0.4, 0.6, 0.8, 1.0], classification=False, random=False)
+# run_experiments([0.0, 0.2, 0.4, 0.6, 0.8, 1.0], classification=False, random=False)
+# run_experiments([0.0, 0.2, 0.4, 0.6, 0.8, 1.0], classification=False, random=True)
 # plot_bias_vs_alpha()
+
+export_to_deephys([0.0], random=False)
